@@ -1,18 +1,20 @@
+import Vue from 'vue'
 import { gapiPromise } from './gapi'
 import GoogleAuthService from './GoogleAuthService'
 
 const googleAuthService = new GoogleAuthService()
 const { login, logout, isAuthenticated, getUserData } = googleAuthService
+const rootVue = new Vue({})
 
 export default {
-  install: function(Vue, clientConfig) {
+  install: function (Vue, clientConfig) {
     Vue.gapiLoadClientPromise = null
 
     const resolveAuth2Client = (resolve, reject) => {
       gapiPromise.then(_ => {
         const gapi = window.gapi
         if (!gapi) {
-          console.error('Failed to load GAPI!')
+          console.log('Failed to load GAPI!')
           return
         }
         if (!gapi.auth) {
@@ -20,8 +22,14 @@ export default {
             Vue.gapiLoadClientPromise = gapi.client
               .init(clientConfig)
               .then(() => {
-                console.info('gapi client initialised.')
                 googleAuthService.authInstance = gapi.auth2.getAuthInstance()
+
+                // Listen for sign-in state changes.
+                gapi.auth2.getAuthInstance().isSignedIn.listen(Vue.prototype.$getSignedInStatus)
+
+                // Handle the initial sign-in state.
+                Vue.prototype.$getSignedInStatus(gapi.auth2.getAuthInstance().isSignedIn.get())
+
                 resolve(gapi)
               })
           })
@@ -29,6 +37,12 @@ export default {
           resolve(gapi)
         }
       })
+    }
+
+    Vue.prototype.$getSignedInStatus = (isSignedIn) => {
+      if (isSignedIn) {
+        rootVue.$emit('signedIn', true)
+      }
     }
 
     Vue.prototype.$getGapiClient = () => {
